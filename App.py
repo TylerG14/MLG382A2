@@ -9,7 +9,7 @@ from sklearn.metrics import classification_report
 import numpy as np
 
 # === Load and Prepare Data ===
-df = pd.read_csv("Data/Invistico_Airline.csv")
+df = pd.read_csv("Invistico_Airline.csv")
 
 # Drop duplicates and handle missing data
 df.drop_duplicates(inplace=True)
@@ -149,8 +149,7 @@ def predict_satisfaction(n_clicks, *values):
     return ""
 
 # Run the app
-import os
-
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host="0.0.0.0", port=port, debug=False)
+    import os
+    port = int(os.environ.get("PORT", 10000))
+    app.run_server(debug=True, host="0.0.0.0", port=port)
