@@ -12,9 +12,9 @@ import os
 # === Load and Prepare Data ===
 try:
     df = pd.read_csv("Invistico_Airline.csv")
-    print("✅ CSV loaded successfully.")
+    print("CSV loaded successfully.")
 except Exception as e:
-    print(f"❌ ERROR LOADING CSV: {e}")
+    print(f"ERROR LOADING CSV: {e}")
     df = None
 
 # Continue only if dataset loaded successfully
@@ -73,7 +73,7 @@ app = dash.Dash(__name__)
 server = app.server
 
 if df is None:
-    app.layout = html.Div("❌ Error loading dataset. Please ensure Invistico_Airline.csv is present.")
+    app.layout = html.Div("Error loading dataset. Please ensure Invistico_Airline.csv is present.")
 else:
     app.layout = html.Div([
         html.H1("Airline Satisfaction Classifier", style={'textAlign': 'center'}),
