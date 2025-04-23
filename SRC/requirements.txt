@@ -1,7 +1,0 @@
-dash
-pandas
-plotly
-matplotlib
-seaborn
-xgboost
-scikit-learn==1.5.1
