@@ -71,7 +71,7 @@ def predict(n_rf, n_xgb, n_logreg, *values):
 
     # Check if inputs are filled
     if any(v is None for v in values):
-        return "⚠️ Please provide all inputs."
+        return "Please provide all inputs."
 
     try:
         X_input = np.array(values).reshape(1, -1)
@@ -83,7 +83,7 @@ def predict(n_rf, n_xgb, n_logreg, *values):
             pred = logreg_model.predict(X_input)[0]
         else:
             return "Select a model."
-        return f"✅ Predicted Satisfaction: {pred}"
+        return f"Predicted Satisfaction: {pred}"
     except Exception as e:
         return f"Error: {e}"
 
