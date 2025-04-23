@@ -1,152 +1,80 @@
 import dash
-from dash import html, dcc, dash_table, Input, Output, State
+from dash import html, dcc, Input, Output
 import pandas as pd
-import plotly.express as px
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler, LabelEncoder
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import classification_report
+import pickle
 import numpy as np
 
-# === Load and Prepare Data ===
-df = pd.read_csv("Data/Invistico_Airline.csv")
+# Load models
+with open("rf_model.pkl", "rb") as f:
+    rf_model = pickle.load(f)
 
-# Drop duplicates and handle missing data
-df.drop_duplicates(inplace=True)
+with open("xgb_model.pkl", "rb") as f:
+    xgb_model = pickle.load(f)
 
-# Fill missing values
-numerical_cols = ['Age', 'Flight Distance', 'Departure Delay in Minutes', 'Arrival Delay in Minutes']
-for col in numerical_cols:
-    df[col] = df[col].fillna(df[col].median())
+with open("logreg_model.pkl", "rb") as f:
+    logreg_model = pickle.load(f)
 
-ordinal_cols = [
-    'Seat comfort', 'Food and drink', 'Gate location', 'Inflight wifi service',
-    'Inflight entertainment', 'Online support', 'Ease of Online booking',
-    'On-board service', 'Leg room service', 'Baggage handling', 'Checkin service',
-    'Cleanliness', 'Online boarding', 'Departure/Arrival time convenient'
-]
-for col in ordinal_cols:
-    df[col] = df[col].fillna(df[col].mode()[0])
-    df[col] = df[col].clip(0, 5)
+# Load dataset (for layout reference)
+df = pd.read_csv("Invistico_Airline.csv")
 
-cat_cols = ['Gender', 'Customer Type', 'Type of Travel', 'Class']
-for col in cat_cols:
-    df[col] = df[col].fillna(df[col].mode()[0])
+# Prepare dropdown options from dataset
+def get_dropdown_options(column):
+    return [{'label': str(i), 'value': i} for i in sorted(df[column].dropna().unique())]
 
-# Encode target and categorical features
-target_encoder = LabelEncoder()
-df['satisfaction'] = target_encoder.fit_transform(df['satisfaction'])
+# Features you used in your model — adjust to match your pipeline!
+input_features = ['Gender', 'Customer Type', 'Type of Travel', 'Class', 'Flight Distance', 'Inflight wifi service',
+                  'Departure/Arrival time convenient', 'Ease of Online booking', 'Food and drink', 'Online boarding',
+                  'Seat comfort', 'Inflight entertainment', 'On-board service', 'Leg room service',
+                  'Baggage handling', 'Checkin service', 'Cleanliness', 'Departure Delay in Minutes']
 
-label_encoders = {}
-for col in cat_cols:
-    le = LabelEncoder()
-    df[col] = le.fit_transform(df[col])
-    label_encoders[col] = le
-
-# One-hot encode encoded categorical features (optional, drop first to avoid multicollinearity)
-df = pd.get_dummies(df, columns=cat_cols, drop_first=True)
-
-# Split data
-X = df.drop("satisfaction", axis=1)
-y = df["satisfaction"]
-
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-# Train model
-model = RandomForestClassifier(n_estimators=100, random_state=42)
-model.fit(X_train, y_train)
-y_pred = model.predict(X_test)
-
-# Classification report
-report = pd.DataFrame(classification_report(y_test, y_pred, output_dict=True)).T.reset_index()
-report.rename(columns={'index': 'Class'}, inplace=True)
-
-# === Dash App ===
 app = dash.Dash(__name__)
 server = app.server
 
 app.layout = html.Div([
-    html.H1("Airline Satisfaction Classifier", style={'textAlign': 'center'}),
+    html.H1("Airline Satisfaction Prediction", style={'textAlign': 'center'}),
 
-    dcc.Tabs([
-        dcc.Tab(label='Dashboard', children=[
-            html.H2("Classification Report"),
-            dash_table.DataTable(
-                data=report.round(3).to_dict('records'),
-                columns=[{"name": i, "id": i} for i in report.columns],
-                style_table={'overflowX': 'auto'},
-                style_cell={'textAlign': 'center'},
-                page_size=10
-            ),
-            html.H2("Feature Importance"),
-            dcc.Graph(
-                figure=px.bar(
-                    x=model.feature_importances_,
-                    y=X_train.columns,
-                    orientation='h',
-                    title="Feature Importances"
-                )
-            )
-        ]),
+    html.Div([
+        html.Div([
+            html.Label(f"{feature}"),
+            dcc.Input(id=feature, type='text', placeholder=f"Enter {feature}") if df[feature].dtype in [np.int64, np.float64]
+            else dcc.Dropdown(id=feature, options=get_dropdown_options(feature), placeholder=f"Select {feature}")
+        ]) for feature in input_features
+    ], style={'columnCount': 2, 'padding': '20px'}),
 
-        dcc.Tab(label='Raw Dataset', children=[
-            html.H2("Airline Dataset"),
-            dash_table.DataTable(
-                data=df.to_dict('records'),
-                columns=[{"name": i, "id": i} for i in df.columns],
-                page_size=10,
-                style_table={'overflowX': 'auto'},
-                style_cell={'textAlign': 'left'}
-            )
-        ]),
-
-        dcc.Tab(label='Predict Satisfaction', children=[
-            html.H2("Predict New Passenger Satisfaction"),
-            html.Div(style={'display': 'flex', 'gap': '40px'}, children=[
-
-                html.Div([
-                    html.Div(id="input-fields", children=[
-                        html.Div([
-                            html.Label(f"{col}"),
-                            dcc.Input(id=f'input-{col}', type='number', placeholder=f"Enter {col}", step=0.01)
-                        ], style={'marginBottom': '10px'}) for col in X_train.columns
-                    ]),
-                    html.Button("Predict", id='predict-button', n_clicks=0, style={'marginTop': '10px'}),
-                    html.Div(id='prediction-output', style={'marginTop': '20px', 'fontSize': '20px'})
-                ], style={'flex': 1}),
-
-                html.Div([
-                    html.H4("Feature Guide (Examples):"),
-                    html.P("Gender_Male: 1 = Male, 0 = Female (if dropped_first)"),
-                    html.P("Class_Eco: 1 = Economy, 0 = other"),
-                    html.P("Checkin service: Ratings from 0–5"),
-                    html.P("Departure Delay in Minutes: Number in minutes")
-                ], style={
-                    'flex': 1,
-                    'backgroundColor': '#f9f9f9',
-                    'padding': '15px',
-                    'borderRadius': '8px',
-                    'fontSize': '14px'
-                })
-            ])
-        ])
-    ])
+    html.Br(),
+    html.Button("Predict (Random Forest)", id='predict-rf', n_clicks=0),
+    html.Button("Predict (XGBoost)", id='predict-xgb', n_clicks=0),
+    html.Button("Predict (LogReg)", id='predict-logreg', n_clicks=0),
+    html.Br(), html.Br(),
+    html.Div(id='prediction-output', style={'fontSize': '20px', 'fontWeight': 'bold'})
 ])
 
 @app.callback(
     Output('prediction-output', 'children'),
-    Input('predict-button', 'n_clicks'),
-    [State(f'input-{col}', 'value') for col in X_train.columns]
+    Input('predict-rf', 'n_clicks'),
+    Input('predict-xgb', 'n_clicks'),
+    Input('predict-logreg', 'n_clicks'),
+    *[Input(feature, 'value') for feature in input_features]
 )
-def predict_satisfaction(n_clicks, *values):
-    if n_clicks > 0:
-        if None in values:
-            return "Please fill in all input fields."
-        input_df = pd.DataFrame([values], columns=X_train.columns)
-        prediction = model.predict(input_df)[0]
-        result = target_encoder.inverse_transform([prediction])[0]
-        return f"Predicted Satisfaction Level: **{result}**"
-    return ""
+def predict(n_rf, n_xgb, n_log, *inputs):
+    ctx = dash.callback_context
+    if not ctx.triggered:
+        return "Enter input and click a button"
+    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+
+    try:
+        features_array = np.array(inputs).reshape(1, -1)
+        if button_id == 'predict-rf':
+            pred = rf_model.predict(features_array)[0]
+        elif button_id == 'predict-xgb':
+            pred = xgb_model.predict(features_array)[0]
+        elif button_id == 'predict-logreg':
+            pred = logreg_model.predict(features_array)[0]
+        else:
+            return "Click a prediction button"
+        return f"Predicted Satisfaction: {pred}"
+    except Exception as e:
+        return f"Error during prediction: {e}"
 
 # Run the app
 if __name__ == "__main__":
