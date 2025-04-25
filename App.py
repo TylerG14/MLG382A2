@@ -68,21 +68,32 @@ def predict(n_rf, n_xgb, n_logreg, *values):
         return "Awaiting input..."
     
     model_name = ctx.triggered[0]['prop_id'].split('.')[0]
-
-    # Check if inputs are filled
     if any(v is None for v in values):
         return "Please provide all inputs."
-
+    
+    # Define encoding mappings (adjust based on your training preprocessing)
+    gender_map = {'Female': 0, 'Male': 1}
+    customer_type_map = {'Loyal Customer': 0, 'disloyal Customer': 1}
+    travel_type_map = {'Personal Travel': 0, 'Business travel': 1}
+    class_map = {'Eco': 0, 'Eco Plus': 1, 'Business': 2}
+    
+    # Encode categorical inputs
+    encoded_values = [
+        gender_map[values[0]],           # Gender
+        customer_type_map[values[1]],    # Customer Type
+        travel_type_map[values[2]],      # Type of Travel
+        class_map[values[3]],            # Class
+        *values[4:]                      # Numerical features (already numbers)
+    ]
+    
     try:
-        X_input = np.array(values).reshape(1, -1)
+        X_input = np.array(encoded_values).reshape(1, -1)
         if model_name == "rf-button":
             pred = rf_model.predict(X_input)[0]
         elif model_name == "xgb-button":
             pred = xgb_model.predict(X_input)[0]
         elif model_name == "logreg-button":
             pred = logreg_model.predict(X_input)[0]
-        else:
-            return "Select a model."
         return f"Predicted Satisfaction: {pred}"
     except Exception as e:
         return f"Error: {e}"
